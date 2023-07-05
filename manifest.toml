@@ -1,6 +1,3 @@
 name = "Poll"
-author_name = "Bjoern"
-author_email = "r10s@b44t.com"
-description = "Webxdc poll app for deltachat"
+description = "A simple poll app. One question, up to 5 answers."
 source_code_url = "https://codeberg.org/webxdc/poll"
-version = "1.0.0"
