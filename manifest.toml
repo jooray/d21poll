@@ -1,3 +1,2 @@
 name = "Poll"
-description = "A simple poll app. One question, up to 5 answers."
 source_code_url = "https://codeberg.org/webxdc/poll"
