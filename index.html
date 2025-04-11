@@ -35,6 +35,9 @@
 			input[type="text"] {
 				width: 90%;
 			}
+			label {
+				padding-left: 0.5em;
+			}
 			a {
 				color: #3792fc;
 				text-decoration: none;
@@ -52,6 +55,7 @@
 			.resultsBar {
 				background-color: #3792fc;
 				height: 20px;
+				margin-bottom: 1em;
 			}
 		</style>
 	</head>
@@ -183,10 +187,6 @@
 				input.setAttribute("type", "text");
 				input.classList.add("answer");
 				newAnswer.appendChild(input);
-				// var removeBtn = document.createElement("button");
-				// removeBtn.textContent = "Remove answer";
-				// removeBtn.addEventListener("click",removeAnswer);
-				// newAnswer.appendChild(removeBtn);
 				//add new answer to the document
 				var answers = document.querySelector("#answers");
 				answers.appendChild(newAnswer);
@@ -283,12 +283,6 @@
 					document.getElementById("voteQuestion").innerText =
 						globalStatus.question;
 					document.getElementById("voteHint").style.display = "none";
-					// for (let i = 0; i < MAX_ANSWERS; i++) {
-					// 	document.getElementById("voteDiv" + i).style.display =
-					// 		globalStatus.answers[i].answer === "" ? "none" : "block";
-					// 	document.getElementById("voteLabel" + i).innerText =
-					// 		globalStatus.answers[i].answer;
-					// }
 
 					//create answer checkboxes
 					var checkBoxes = document.getElementById("voteCheckboxes");
@@ -301,6 +295,7 @@
 						if(globalStatus.answers[i].votes.includes(window.webxdc.selfAddr)) input.checked = true;
 						p.appendChild(input);
 						var label = document.createElement("label");
+						label.setAttribute("for", "voteRadio" + i)
 						label.textContent = globalStatus.answers[i].answer;
 						p.appendChild(label);
 						checkBoxes.appendChild(p);
@@ -315,17 +310,6 @@
 					var resultsContainer = document.getElementById("resultsDiv");
 					resultsContainer.innerHTML = "";
 					for (let i = 0; i < MAX_ANSWERS; i++) {
-						// let votes = globalStatus.answers[i].votes.length;
-						// let percent =
-						// 	totalVotes === 0 ? 0 : Math.round((votes * 100) / totalVotes);
-						// let barWidth = percent === 0 ? "1px" : percent + "%";
-						// document.getElementById("resultsDiv" + i).style.display =
-						// 	globalStatus.answers[i].answer === "" ? "none" : "block";
-						// document.getElementById("resultsAnswer" + i).innerText =
-						// 	globalStatus.answers[i].answer;
-						// document.getElementById("resultsVotes" + i).innerText =
-						// 	votes + (votes === 1 ? " vote (" : " votes (") + percent + "%)";
-						// document.getElementById("resultsBar" + i).style.width = barWidth;
 
 						//create answer divs
 						var resultsDiv = document.createElement("div");
