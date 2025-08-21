@@ -11,6 +11,8 @@ In messengers as Delta Chat, Arcane Chat, Delta Touch,
 all votes are end-to-end-encrypted between all members of a chat.
 However, the members themselves could inspect the messages after decryption on the network level and by that figure out who voted what.
 
+[Demo here](https://jooray.github.io/d21poll/index.html).
+You can simulate adding new peers with the Add Peer button in the bottom.
 
 ## D21 rules (per ballot size N)
 
