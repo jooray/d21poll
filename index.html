@@ -57,6 +57,47 @@
 				height: 20px;
 				margin-bottom: 1em;
 			}
+
+			.vote-meta {
+				background: #f6f8ff;
+				border: 1px solid #d7e3ff;
+				padding: 0.75em 1em;
+				border-radius: 0.5em;
+				margin-bottom: 1em;
+			}
+			.vote-row {
+				display: flex;
+				align-items: center;
+				gap: 0.75em;
+				margin: 0.4em 0;
+			}
+			.vote-row label {
+				flex: 1;
+			}
+			.badge {
+				display: inline-block;
+				padding: 0.1em 0.5em;
+				border-radius: 0.5em;
+				font-size: 0.85em;
+				border: 1px solid #ddd;
+			}
+			.badge.plus {
+				background: #e9f7ff;
+				border-color: #bfe3ff;
+				color: #0561a8;
+			}
+			.badge.minus {
+				background: #fff0f0;
+				border-color: #ffd0d0;
+				color: #9b1c1c;
+			}
+			.winner {
+				background: #eaffea;
+				border: 1px solid #b8e6b8;
+				padding: 0.5em 0.75em;
+				border-radius: 0.5em;
+				margin-bottom: 1em;
+			}
 		</style>
 	</head>
 
@@ -79,6 +120,15 @@
 				</p>
 			</div>
 			<p>
+				<b>Voting quotas (D21):</b><br />
+				Recommended: <span id="quotaRecommended">P=?, M=?</span><br />
+				Plus (P):
+				<input type="number" id="configureP" min="0" value="1" style="width:5em" />
+				&nbsp; Minus (M):
+				<input type="number" id="configureM" min="0" value="0" style="width:5em" />
+				<br /><small id="configureQuotaHint"></small>
+			</p>
+			<p>
 				<span id="configureHint">Please fill all the answers</span><br />
 				&nbsp;
 			</p>
@@ -95,6 +145,8 @@
 		</div>
 		<div id="votePage" class="page" style="display: none">
 			<h2 id="voteQuestion">Question</h2>
+			<div id="voteQuota" class="vote-meta"></div>
+			<div id="voteUsage" class="vote-meta" style="display:none"></div>
 			<div id="voteCheckboxes"></div>
 			<p id="voteHint" style="display: none"></p>
 			<p>
@@ -107,6 +159,7 @@
 		</div>
 		<div id="resultsPage" class="page" style="display: none">
 			<h2 id="resultsQuestion">Question</h2>
+			<div id="winnerBanner" class="winner" style="display:none"></div>
 			<div id="resultsDiv"></div>
 
 			<div><span id="resultsTotalVotes">0</span> people voted</div>
@@ -117,8 +170,8 @@
 		<script>
 			// the status is altered by the following updates:
 			//
-			// {action:"configure", question:"", answers:["", "", "", "", ""]}
-			// {action:"vote", sender:"addr", vote:0..4}
+			// {action:"configure", question:"", answers:["", ...]}
+			// {action:"vote", sender:"addr", vote:{plus:[...], minus:[...]}}
 			//
 			// configure is only executed when there are no votes yet,
 			// subsequent votes from the same addr overwrite previous votes.
@@ -126,8 +179,45 @@
 			var globalStatus = {
 				people: [],
 				question: "",
-				answers: [],
+				answers: [], // each: { answer: string, plus: string[], minus: string[] }
+				quota: null, // {P, M}
 			};
+
+			function computeQuota(n) {
+				var P = Math.min(3, Math.ceil(n / 3));
+				var M = n >= 5 ? 1 : 0;
+				return { P: P, M: M };
+			}
+
+			function getQuota() {
+				return globalStatus.quota || computeQuota(MAX_ANSWERS);
+			}
+
+			function updateQuotaUI() {
+				var n = document.getElementsByClassName("answer").length;
+				var rec = computeQuota(n);
+				var recSpan = document.getElementById("quotaRecommended");
+				if (recSpan) recSpan.innerText = "P=" + rec.P + ", M=" + rec.M;
+				var pEl = document.getElementById("configureP");
+				var mEl = document.getElementById("configureM");
+				if (!pEl || !mEl) return;
+				pEl.max = String(rec.P);
+				mEl.max = String(rec.M);
+				if (rec.M === 0) {
+					mEl.value = "0";
+					mEl.disabled = true;
+					var hint = document.getElementById("configureQuotaHint");
+					if (hint) hint.innerText = "Minus votes are disabled unless there are at least 5 options.";
+				} else {
+					mEl.disabled = false;
+					var hint = document.getElementById("configureQuotaHint");
+					if (hint) hint.innerText = "";
+				}
+				if (!pEl.dataset.userSet) pEl.value = String(rec.P);
+				if (!mEl.dataset.userSet) mEl.value = String(rec.M);
+				if (Number(pEl.value) > rec.P) pEl.value = String(rec.P);
+				if (Number(mEl.value) > rec.M) mEl.value = String(rec.M);
+			}
 
 			function configure() {
 				// validate input
@@ -144,6 +234,26 @@
 							"⚠️ Please enter all the answers.";
 						return;
 					}
+				}
+
+				// validate quotas against recommended
+				var rec = computeQuota(MAX_ANSWERS);
+				var P = Math.floor(Number(document.getElementById("configureP").value));
+				var M = Math.floor(Number(document.getElementById("configureM").value));
+				if (isNaN(P) || isNaN(M)) {
+					document.getElementById("configureHint").innerText =
+						"⚠️ Invalid quota values.";
+					return;
+				}
+				if (P < 0 || P > rec.P || M < 0 || M > rec.M) {
+					document.getElementById("configureHint").innerText =
+						"⚠️ Quotas out of allowed range for " + MAX_ANSWERS + " options.";
+					return;
+				}
+				if (P + M > MAX_ANSWERS) {
+					document.getElementById("configureHint").innerText =
+						"⚠️ P + M cannot exceed the number of options.";
+					return;
 				}
 
 				// change status
@@ -165,6 +275,7 @@
 							sender: window.webxdc.selfAddr,
 							question: globalStatus.question,
 							answers: answers,
+							quota: { P: P, M: M },
 						},
 						info: 'Poll "' + globalStatus.question + '" created!',
 						summary: globalStatus.question,
@@ -190,6 +301,7 @@
 				//add new answer to the document
 				var answers = document.querySelector("#answers");
 				answers.appendChild(newAnswer);
+				updateQuotaUI();
 			}
 
 			function removeAnswer() {
@@ -201,28 +313,34 @@
 					document.getElementById("configureHint").innerText =
 							"⚠️ You need at least 2 answers";
 				}
+				updateQuotaUI();
 			}
 
 			function vote() {
-				// validate input
-				var person = window.webxdc.selfAddr;
-				var vote = [];
+				// gather selection
+				var plus = [];
+				var minus = [];
 				for (let i = 0; i < MAX_ANSWERS; i++) {
-					if (document.getElementById("voteRadio" + i).checked) {
-						vote.push(i);
-					}
+					if (document.getElementById("plus_" + i)?.checked) plus.push(i);
+					if (document.getElementById("minus_" + i)?.checked) minus.push(i);
 				}
-				if (vote.length === 0) {
+
+				// enforce client-side limits (should already be enforced by UI)
+				var q = getQuota();
+				if (plus.length > q.P || minus.length > q.M) {
 					document.getElementById("voteHint").innerText =
-						"⚠️ Please choose an option.";
+						"⚠️ Too many selections. Adjust to the shown limits.";
 					document.getElementById("voteHint").style.display = "block";
 					return;
 				}
 
-				// change status
+				// change status (local preview)
 				removeVote(window.webxdc.selfAddr);
-				for (let i = 0; i < vote.length; i++) {
-					globalStatus.answers[vote[i]].votes.push(window.webxdc.selfAddr);
+				for (let i = 0; i < plus.length; i++) {
+					globalStatus.answers[plus[i]].plus.push(window.webxdc.selfAddr);
+				}
+				for (let i = 0; i < minus.length; i++) {
+					globalStatus.answers[minus[i]].minus.push(window.webxdc.selfAddr);
 				}
 
 				// send update
@@ -231,7 +349,7 @@
 						payload: {
 							action: "vote",
 							sender: window.webxdc.selfAddr,
-							vote: vote,
+							vote: { plus: plus, minus: minus },
 						},
 						info:
 							window.webxdc.selfName +
@@ -251,11 +369,14 @@
 
 			function hasSelfVoted() {
 				var selfAddr = window.webxdc.selfAddr;
+				// either explicitly in people (after submission) or has any mark locally
+				if (globalStatus.people.indexOf(selfAddr) !== -1) return true;
 				for (let i = 0; i < MAX_ANSWERS; i++) {
-					for (let j = 0; j < globalStatus.answers[i].votes.length; j++) {
-						if (globalStatus.answers[i].votes[j] === selfAddr) {
-							return true;
-						}
+					if (
+						globalStatus.answers[i].plus.includes(selfAddr) ||
+						globalStatus.answers[i].minus.includes(selfAddr)
+					) {
+						return true;
 					}
 				}
 				return false;
@@ -263,20 +384,65 @@
 
 			function removeVote(addr) {
 				for (let i = 0; i < MAX_ANSWERS; i++) {
-					globalStatus.answers[i].votes = globalStatus.answers[i].votes.filter((vote) => vote !== addr);
+					globalStatus.answers[i].plus = globalStatus.answers[i].plus.filter((v) => v !== addr);
+					globalStatus.answers[i].minus = globalStatus.answers[i].minus.filter((v) => v !== addr);
 				}
 			}
 
-			function getTotalVotes() {
-				var totalVotes = 0;
+			function getResultsForAnswer(i) {
+				let plus = globalStatus.answers[i].plus.length;
+				let minus = globalStatus.answers[i].minus.length;
+				return { plus: plus, minus: minus, score: plus - minus };
+			}
+
+			function findWinnerIndices() {
+				// Apply tie-breaking: highest score, then most plus, then fewest minus
+				let best = [];
+				let bestMetrics = null; // [score, plus, -minus]
 				for (let i = 0; i < MAX_ANSWERS; i++) {
-					totalVotes += globalStatus.answers[i].votes.length;
+					const r = getResultsForAnswer(i);
+					const metrics = [r.score, r.plus, -r.minus];
+					if (bestMetrics == null) {
+						best = [i];
+						bestMetrics = metrics;
+						continue;
+					}
+					const cmp =
+						metrics[0] !== bestMetrics[0]
+							? metrics[0] - bestMetrics[0]
+						: metrics[1] !== bestMetrics[1]
+						? metrics[1] - bestMetrics[1]
+						: metrics[2] - bestMetrics[2];
+					if (cmp > 0) {
+						best = [i];
+						bestMetrics = metrics;
+					} else if (
+						metrics[0] === bestMetrics[0] &&
+						metrics[1] === bestMetrics[1] &&
+						metrics[2] === bestMetrics[2]
+					) {
+						best.push(i);
+					}
 				}
-				return totalVotes;
+				return best;
 			}
 
 			function refresh(page) {
 				if (page === "configurePage") {
+					// init quota UI
+					setTimeout(() => {
+						var pEl = document.getElementById("configureP");
+						var mEl = document.getElementById("configureM");
+						if (pEl && !pEl.dataset.bound) {
+							pEl.addEventListener("input", () => (pEl.dataset.userSet = "1"));
+							pEl.dataset.bound = "1";
+						}
+						if (mEl && !mEl.dataset.bound) {
+							mEl.addEventListener("input", () => (mEl.dataset.userSet = "1"));
+							mEl.dataset.bound = "1";
+						}
+						updateQuotaUI();
+					}, 0);
 				} else if (page === "votePage") {
 					document.getElementById("configurePage").style.display = "none";
 					document.getElementById("resultsPage").style.display = "none";
@@ -285,58 +451,132 @@
 					document.getElementById("voteHint").style.display = "none";
 
 					//create answer checkboxes
+					var q = getQuota();
+					document.getElementById("voteQuota").innerText =
+						"You have " + q.P + " plus votes and " + q.M + " minus votes.";
+
 					var checkBoxes = document.getElementById("voteCheckboxes");
 					checkBoxes.innerHTML = "";
 					for (let i = 0; i < MAX_ANSWERS; i++) {
-						var p = document.createElement("p");
-						var input = document.createElement("input");
-						input.setAttribute("type", "checkbox");
-						input.setAttribute("id", "voteRadio" + i);
-						if(globalStatus.answers[i].votes.includes(window.webxdc.selfAddr)) input.checked = true;
-						p.appendChild(input);
+						var row = document.createElement("div");
+						row.className = "vote-row";
 						var label = document.createElement("label");
-						label.setAttribute("for", "voteRadio" + i)
 						label.textContent = globalStatus.answers[i].answer;
-						p.appendChild(label);
-						checkBoxes.appendChild(p);
-						console.log(p);
+						row.appendChild(label);
+
+						var plus = document.createElement("input");
+						plus.type = "checkbox";
+						plus.id = "plus_" + i;
+						plus.checked = globalStatus.answers[i].plus.includes(window.webxdc.selfAddr);
+						plus.title = "+";
+						row.appendChild(plus);
+						var plusBadge = document.createElement("span");
+						plusBadge.className = "badge plus";
+						plusBadge.innerText = "+";
+						row.appendChild(plusBadge);
+
+						var minus = document.createElement("input");
+						minus.type = "checkbox";
+						minus.id = "minus_" + i;
+						minus.checked = globalStatus.answers[i].minus.includes(window.webxdc.selfAddr);
+						minus.title = "-";
+						row.appendChild(minus);
+						var minusBadge = document.createElement("span");
+						minusBadge.className = "badge minus";
+						minusBadge.innerText = "-";
+						row.appendChild(minusBadge);
+
+						checkBoxes.appendChild(row);
 					}
+
+					function updateUsageAndDisable() {
+						var q = getQuota();
+						var plusUsed = 0;
+						var minusUsed = 0;
+						for (let i = 0; i < MAX_ANSWERS; i++) {
+							if (document.getElementById("plus_" + i).checked) plusUsed++;
+							if (document.getElementById("minus_" + i).checked) minusUsed++;
+						}
+						var usageEl = document.getElementById("voteUsage");
+						usageEl.style.display = "block";
+						usageEl.innerText =
+							"Plus used: " + plusUsed + "/" + q.P + " · Minus used: " + minusUsed + "/" + q.M;
+
+						for (let i = 0; i < MAX_ANSWERS; i++) {
+							var plusEl = document.getElementById("plus_" + i);
+							var minusEl = document.getElementById("minus_" + i);
+							// mutual exclusion per option
+							if (plusEl.checked) {
+								minusEl.checked = false;
+							}
+							if (minusEl.checked) {
+								plusEl.checked = false;
+							}
+
+							// disable unchecked plus if quota reached
+							if (!plusEl.checked) plusEl.disabled = plusUsed >= q.P;
+							// disable unchecked minus if quota reached or M==0
+							if (!minusEl.checked) minusEl.disabled = q.M === 0 || minusUsed >= q.M;
+							// also prevent selecting both simultaneously via disabling the other when one checked
+							if (plusEl.checked) minusEl.disabled = true;
+							if (minusEl.checked) plusEl.disabled = true;
+						}
+					}
+
+					for (let i = 0; i < MAX_ANSWERS; i++) {
+						document.getElementById("plus_" + i).addEventListener("change", updateUsageAndDisable);
+						document.getElementById("minus_" + i).addEventListener("change", updateUsageAndDisable);
+					}
+					updateUsageAndDisable();
 				} else {
 					document.getElementById("configurePage").style.display = "none";
 					document.getElementById("votePage").style.display = "none";
 					document.getElementById("resultsQuestion").innerText =
 						globalStatus.question;
-					let totalVotes = getTotalVotes();
 					var resultsContainer = document.getElementById("resultsDiv");
 					resultsContainer.innerHTML = "";
+
+					// winner banner
+					var winnerBanner = document.getElementById("winnerBanner");
+					var winners = findWinnerIndices();
+					if (winners.length === 1) {
+						winnerBanner.style.display = "block";
+						var r = getResultsForAnswer(winners[0]);
+						winnerBanner.innerText =
+							"Winner: " +
+							globalStatus.answers[winners[0]].answer +
+							" (score " + r.score + ", +" + r.plus + ", −" + r.minus + ")";
+					} else if (winners.length > 1) {
+						winnerBanner.style.display = "block";
+						winnerBanner.innerText =
+							"Tie: " +
+							winners
+								.map((i) => globalStatus.answers[i].answer)
+								.join(", ") +
+							" (apply tie-breakers or decide manually)";
+					} else {
+						winnerBanner.style.display = "none";
+					}
+
+					// list each restaurant sorted by final score (desc), show only final score
+					var items = [];
 					for (let i = 0; i < MAX_ANSWERS; i++) {
-
-						//create answer divs
-						var resultsDiv = document.createElement("div");
-						var resultsAnswer = document.createElement("b");
-						resultsAnswer.textContent = globalStatus.answers[i].answer;
-						resultsDiv.appendChild(resultsAnswer);
-
-						let votes = globalStatus.answers[i].votes.length;
-						let percent =
-							totalVotes === 0 ? 0 : Math.round((votes * 100) / totalVotes);
-						let barWidth = percent === 0 ? "1px" : percent + "%";
-
-						var span = document.createElement("span");
-						span.textContent =
-							" - " +
-							votes +
-							(votes === 1 ? " vote (" : " votes (") +
-							percent +
-							"%)";
-						resultsDiv.appendChild(span);
-						resultsDiv.appendChild(document.createElement("br"));
-						var resultsBar = document.createElement("div");
-						resultsBar.classList.add("resultsBar");
-
-						resultsBar.style.width = barWidth;
-						resultsDiv.appendChild(resultsBar);
-						resultsContainer.appendChild(resultsDiv);
+						items.push({
+							idx: i,
+							name: globalStatus.answers[i].answer,
+							res: getResultsForAnswer(i),
+						});
+					}
+					items.sort((a, b) => b.res.score - a.res.score);
+					for (const it of items) {
+						var row = document.createElement("div");
+						var name = document.createElement("b");
+						name.textContent = it.name;
+						row.appendChild(name);
+						var meta = document.createElement("span");
+						meta.innerText = " – score " + it.res.score;
+						row.appendChild(meta);
+						resultsContainer.appendChild(row);
 					}
 					document.getElementById("resultsTotalVotes").innerText =
 						globalStatus.people.length;
@@ -363,22 +603,45 @@
 					for (let i = 0; i < MAX_ANSWERS; i++) {
 						globalStatus.answers.push({
 							answer: update.payload.answers[i],
-							votes: [],
+							plus: [],
+							minus: [],
 						});
+					}
+					// apply configured quota if present
+					if (update.payload.quota && typeof update.payload.quota.P === "number") {
+						var recQ = computeQuota(MAX_ANSWERS);
+						globalStatus.quota = {
+							P: Math.max(0, Math.min(recQ.P, Math.floor(update.payload.quota.P))),
+							M: Math.max(0, Math.min(recQ.M, Math.floor(update.payload.quota.M || 0))),
+						};
+						if (globalStatus.quota.P + globalStatus.quota.M > MAX_ANSWERS) {
+							globalStatus.quota.M = Math.max(0, Math.min(globalStatus.quota.M, MAX_ANSWERS - globalStatus.quota.P));
+						}
 					}
 				} else if (update.payload.action === "vote") {
 					removeVote(update.payload.sender);
 					if (globalStatus.people.indexOf(update.payload.sender) == -1)
 						globalStatus.people.push(update.payload.sender);
 
-					if (
-						update.payload.vote.length >= 1 &&
-						update.payload.vote.length <= MAX_ANSWERS
-					) {
+					// Support old format (array) as all-pluses, and new object format
+					if (Array.isArray(update.payload.vote)) {
 						for (let i = 0; i < update.payload.vote.length; i++) {
-							globalStatus.answers[update.payload.vote[i]].votes.push(
-								update.payload.sender
-							);
+							let idx = update.payload.vote[i];
+							if (idx >= 0 && idx < MAX_ANSWERS)
+								globalStatus.answers[idx].plus.push(update.payload.sender);
+						}
+					} else if (update.payload.vote && typeof update.payload.vote === "object") {
+						const plus = update.payload.vote.plus || [];
+						const minus = update.payload.vote.minus || [];
+						for (let i = 0; i < plus.length; i++) {
+							let idx = plus[i];
+							if (idx >= 0 && idx < MAX_ANSWERS)
+								globalStatus.answers[idx].plus.push(update.payload.sender);
+						}
+						for (let i = 0; i < minus.length; i++) {
+							let idx = minus[i];
+							if (idx >= 0 && idx < MAX_ANSWERS)
+								globalStatus.answers[idx].minus.push(update.payload.sender);
 						}
 					}
 				}

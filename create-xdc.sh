@@ -6,7 +6,8 @@ case "$1" in
         exit
         ;;
     "")
-        PACKAGE_NAME=${PWD##*/} # '##*/' removes everything before the last slash and the last slash
+        # Default to project name if run from any folder
+        PACKAGE_NAME=d21poll-xdc
         ;;
     *)
         PACKAGE_NAME=${1%.xdc} # '%.xdc' removes the extension and allows PACKAGE_NAME to be given with or without extension
