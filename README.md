@@ -3,6 +3,19 @@
 A Webxdc poll implementing Karel Janecek's D21-style plus/minus voting for a single-winner choice.
 One question, many options. Voters give a limited number of pluses and optionally one minus.
 
+<!-- jooray-links:start -->
+### More from me
+
+**Related projects**
+
+- [nowhere-webxdc](https://github.com/jooray/nowhere-webxdc): the nowhere offline URL renderer as a WebXDC app for Delta Chat
+- [html-resource-embedder](https://github.com/jooray/html-resource-embedder): embed media, JS and CSS into one self-contained HTML file
+
+**Full project showcase:** [D21 Poll in my project showcase](https://juraj.bednar.io/showcase/#MSG-05), or [all my projects](https://juraj.bednar.io/showcase/).
+
+I write about building things on [my blog](https://juraj.bednar.io/en/blog-en/). I also wrote a cypherpunk novel, [Tamers of Entropy](https://tamersofentropy.net/), and there is a [trailer](https://tamersofentropy.net/#trailer).
+<!-- jooray-links:end -->
+
 ![Screenshot](assets/screenshot1.png) ![Screenshot](assets/screenshot2.png) ![Screenshot](assets/screenshot3.png)
 
 [Download .xdc from Release Assets](https://github.com/jooray/d21poll), attach to group, create your poll and get votes from all group members!
